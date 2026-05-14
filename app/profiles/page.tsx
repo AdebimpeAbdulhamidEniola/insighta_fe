@@ -103,7 +103,7 @@ export default function ProfilesPage() {
           <Button asChild>
             <Link href="/lookup">
               <Search className="mr-2 h-4 w-4" />
-              Lookup Name
+              Lookup Query
             </Link>
           </Button>
         </div>
