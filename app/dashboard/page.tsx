@@ -1,153 +1,118 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  LayoutDashboard,
-  Users,
-  Upload,
-  LogOut,
-  Github,
-  Activity,
-  ChevronDown,
-  Sparkles,
-} from 'lucide-react';
+import { DashboardLayout } from '@/components/dashboard-layout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AgeGroupChart } from '@/components/charts/age-group-chart';
+import { CountryChart } from '@/components/charts/country-chart';
+import { GenderChart } from '@/components/charts/gender-chart';
+import { RecentProfiles } from '@/components/recent-profiles';
+import { Users, Globe, TrendingUp, Activity } from 'lucide-react';
+import useSWR from 'swr';
+import { fetcher, type ProfilesListResponse } from '@/lib/api';
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Profiles', href: '/profiles', icon: Users },
-  { name: 'Smart Search', href: '/lookup', icon: Sparkles },
-  { name: 'Ingest', href: '/ingest', icon: Upload },
-];
+export default function DashboardPage() {
+  const router = useRouter();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
-export function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const { user, logout, isLoading } = useAuth();
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/');
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  const { data } = useSWR<ProfilesListResponse>(
+    isAuthenticated ? '/api/profiles?limit=1' : null,
+    fetcher
+  );
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="relative h-12 w-12">
+          <div className="absolute inset-0 rounded-full border-4 border-primary/20" />
+          <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-14 items-center px-4 lg:px-6">
-          <Link href="/dashboard" className="flex items-center gap-2 mr-8">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <Activity className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-lg font-semibold tracking-tight">InsightaLabs</span>
-          </Link>
-
-          <nav className="hidden md:flex items-center gap-1">
-            {navigation.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors',
-                    isActive
-                      ? 'bg-secondary text-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.name}
-                </Link>
-              );
-            })}
-          </nav>
-
-          <div className="ml-auto flex items-center gap-4">
-            <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-              </span>
-              <span>API Connected</span>
-            </div>
-
-            {!isLoading && user && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-2 px-2">
-                    <Avatar className="h-7 w-7">
-                      <AvatarImage src={user.avatar_url} alt={user.username} />
-                      <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                    <span className="hidden sm:inline-block text-sm font-medium">
-                      {user.username}
-                    </span>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>
-                    <div className="flex flex-col">
-                      <span>{user.username}</span>
-                      <span className="text-xs font-normal text-muted-foreground">{user.email}</span>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <a
-                      href={`https://github.com/${user.username}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center"
-                    >
-                      <Github className="mr-2 h-4 w-4" />
-                      GitHub Profile
-                    </a>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={logout} className="text-destructive">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Logout
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
+    <DashboardLayout>
+      <div className="p-4 lg:p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Welcome back{user?.username ? `, ${user.username}` : ''}
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Here&apos;s an overview of your demographic data.
+          </p>
         </div>
-      </header>
 
-      <nav className="md:hidden border-b border-border bg-card">
-        <div className="flex items-center gap-1 px-4 py-2 overflow-x-auto">
-          {navigation.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-colors',
-                  isActive
-                    ? 'bg-secondary text-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.name}
-              </Link>
-            );
-          })}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Total Profiles
+              </CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{data?.total ?? '—'}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Role
+              </CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold capitalize">{user?.role ?? '—'}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                API Status
+              </CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-500">Live</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Countries
+              </CardTitle>
+              <Globe className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">50+</div>
+            </CardContent>
+          </Card>
         </div>
-      </nav>
 
-      <main className="flex-1">
-        {children}
-      </main>
-    </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <GenderChart />
+          <AgeGroupChart />
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <CountryChart />
+          <RecentProfiles />
+        </div>
+      </div>
+    </DashboardLayout>
   );
 }
