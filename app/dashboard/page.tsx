@@ -9,24 +9,62 @@ import { AgeGroupChart } from '@/components/charts/age-group-chart';
 import { CountryChart } from '@/components/charts/country-chart';
 import { GenderChart } from '@/components/charts/gender-chart';
 import { RecentProfiles } from '@/components/recent-profiles';
-import { Users, Globe, TrendingUp, Activity } from 'lucide-react';
+import { Users, Globe, Activity, Search } from 'lucide-react';
 import useSWR from 'swr';
-import { fetcher, type ProfilesListResponse } from '@/lib/api';
+import { api, type ProfilesListResponse } from '@/lib/api';
+
+// Individual fetchers that return the total for a given filter
+const fetchMale   = () => api.getProfiles({ gender: 'male',   limit: 1 });
+const fetchFemale = () => api.getProfiles({ gender: 'female', limit: 1 });
+const fetchChild  = () => api.getProfiles({ age_group: 'child',     limit: 1 });
+const fetchTeen   = () => api.getProfiles({ age_group: 'teenager',  limit: 1 });
+const fetchAdult  = () => api.getProfiles({ age_group: 'adult',     limit: 1 });
+const fetchSenior = () => api.getProfiles({ age_group: 'senior',    limit: 1 });
+const fetchAll    = () => api.getProfiles({ limit: 1 });
+// Country sample — fetch 50 profiles and aggregate client-side
+const fetchCountrySample = () => api.getProfiles({ limit: 50, sort_by: 'created_at', order: 'desc' });
 
 export default function DashboardPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading, user } = useAuth();
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace('/');
-    }
+    if (!isLoading && !isAuthenticated) router.replace('/');
   }, [isAuthenticated, isLoading, router]);
 
-  const { data } = useSWR<ProfilesListResponse>(
-    isAuthenticated ? '/api/profiles?limit=1' : null,
-    fetcher
-  );
+  const enabled = isAuthenticated;
+
+  const { data: allData }    = useSWR<ProfilesListResponse>(enabled ? 'total'   : null, fetchAll);
+  const { data: maleData }   = useSWR<ProfilesListResponse>(enabled ? 'male'    : null, fetchMale);
+  const { data: femaleData } = useSWR<ProfilesListResponse>(enabled ? 'female'  : null, fetchFemale);
+  const { data: childData }  = useSWR<ProfilesListResponse>(enabled ? 'child'   : null, fetchChild);
+  const { data: teenData }   = useSWR<ProfilesListResponse>(enabled ? 'teen'    : null, fetchTeen);
+  const { data: adultData }  = useSWR<ProfilesListResponse>(enabled ? 'adult'   : null, fetchAdult);
+  const { data: seniorData } = useSWR<ProfilesListResponse>(enabled ? 'senior'  : null, fetchSenior);
+  const { data: countryData }= useSWR<ProfilesListResponse>(enabled ? 'country-sample' : null, fetchCountrySample);
+
+  const genderChartData = [
+    { gender: 'male',   count: maleData?.total   ?? 0 },
+    { gender: 'female', count: femaleData?.total  ?? 0 },
+  ];
+
+  const ageGroupChartData = [
+    { age_group: 'child',     count: childData?.total  ?? 0 },
+    { age_group: 'teenager',  count: teenData?.total   ?? 0 },
+    { age_group: 'adult',     count: adultData?.total  ?? 0 },
+    { age_group: 'senior',    count: seniorData?.total ?? 0 },
+  ];
+
+  // Aggregate country counts from the sample
+  const countryMap: Record<string, { country_id: string; country_name: string | null; count: number }> = {};
+  for (const profile of countryData?.data ?? []) {
+    const key = profile.country_id;
+    if (!countryMap[key]) {
+      countryMap[key] = { country_id: key, country_name: profile.country_name, count: 0 };
+    }
+    countryMap[key].count++;
+  }
+  const countryChartData = Object.values(countryMap);
 
   if (isLoading) {
     return (
@@ -53,64 +91,95 @@ export default function DashboardPage() {
           </p>
         </div>
 
+        {/* Stat cards */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="pb-2 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Profiles
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Profiles</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{data?.total ?? '—'}</div>
+              <div className="text-3xl font-bold">{allData?.total?.toLocaleString() ?? '—'}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Role
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Male</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{maleData?.total?.toLocaleString() ?? '—'}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Female</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{femaleData?.total?.toLocaleString() ?? '—'}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Role</CardTitle>
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold capitalize">{user?.role ?? '—'}</div>
             </CardContent>
           </Card>
+        </div>
 
+        {/* Charts row 1 */}
+        <div className="grid gap-6 lg:grid-cols-2">
           <Card>
-            <CardHeader className="pb-2 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                API Status
-              </CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardHeader>
+              <CardTitle className="text-base">Gender Distribution</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-green-500">Live</div>
+              <GenderChart data={genderChartData} />
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Countries
-              </CardTitle>
-              <Globe className="h-4 w-4 text-muted-foreground" />
+            <CardHeader>
+              <CardTitle className="text-base">Age Groups</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">50+</div>
+              <AgeGroupChart data={ageGroupChartData} />
             </CardContent>
           </Card>
         </div>
 
+        {/* Charts row 2 */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <GenderChart />
-          <AgeGroupChart />
-        </div>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Top Countries</CardTitle>
+                <Globe className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CountryChart data={countryChartData} />
+            </CardContent>
+          </Card>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <CountryChart />
-          <RecentProfiles />
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Recent Profiles</CardTitle>
+                <Search className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <RecentProfiles />
+            </CardContent>
+          </Card>
         </div>
       </div>
     </DashboardLayout>
